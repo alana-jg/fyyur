@@ -78,32 +78,27 @@ def show_venue(venue_id):
   venue = Venue.query.get(venue_id)
   past_shows = []
   upcoming_shows = []
-  past_shows_count = 0
-  upcoming_shows_count = 0
 
-  # determines past and upcoming shows and provides artist info
-  for show in venue.shows:
-    artist_id = show.artist_id
-    artist = Artist.query.get(artist_id)
-    if show.start_time > datetime.now():
-
-      upcoming_shows.append({
-      "artist_id": artist.id,
+  all_past_shows = db.session.query(Shows).join(Venue).filter(Shows.venue_id==venue_id).filter(Shows.start_time<datetime.now()).all()
+  for show in all_past_shows:
+    artist = db.session.query(Artist).join(Shows).filter(Artist.id==show.artist_id).one()
+    past_shows.append({
+      "artist_id": show.artist_id,
       "artist_name": artist.name,
       "artist_image_link": artist.image_link,
       "start_time": str(show.start_time)
-      })
-      upcoming_shows_count +=1
-    else:
+    })
 
-      past_shows.append({
-      "artist_id": artist.id,
+  all_upcoming_shows = db.session.query(Shows).join(Venue).filter(Shows.venue_id==venue_id).filter(Shows.start_time>datetime.now()).all()
+  for show in all_upcoming_shows:
+    artist = db.session.query(Artist).join(Shows).filter(Artist.id==show.artist_id).one()
+    upcoming_shows.append({
+      "artist_id": show.artist_id,
       "artist_name": artist.name,
       "artist_image_link": artist.image_link,
       "start_time": str(show.start_time)
-      })
-      past_shows_count +=1
- 
+    })
+
   data = {
     'id': venue.id,
     'name': venue.name,
@@ -118,9 +113,9 @@ def show_venue(venue_id):
     'seeking_talent': venue.seeking_talent,
     'seeking_description': venue.seeking_description,
     "upcoming_shows": upcoming_shows,
-    "upcoming_shows_count": upcoming_shows_count,
+    "upcoming_shows_count": len(all_upcoming_shows),
     "past_shows": past_shows,
-    "past_shows_count": past_shows_count,
+    "past_shows_count": len(all_past_shows),
   }
 
   return render_template('pages/show_venue.html', venue=data)
@@ -149,11 +144,15 @@ def create_venue_submission():
       seeking_description=form.seeking_description.data,
       genres=form.genres.data
       ) 
-      db.session.add(venue)
-      db.session.commit()
+      exists=Venue.query.filter(Venue.name.ilike(venue.name)).count()
+      if exists == 0:
+        db.session.add(venue)
+        db.session.commit()
 
-      # on successful db insert, flash success
-      flash('Venue ' + venue.name + ' was successfully listed!')
+        # on successful db insert, flash success
+        flash('Venue ' + venue.name + ' was successfully listed!')
+      else:
+        raise Exception
 
   except:
       # on unsuccessful db insert, flash an error instead.
@@ -207,27 +206,26 @@ def show_artist(artist_id):
   past_shows_count = 0
   upcoming_shows_count = 0
 
-  # determines past and upcoming shows and provides venue info
-  for show in artist.shows:
-    venue_id = show.venue_id
-    venue = Venue.query.get(venue_id)
-    if show.start_time > datetime.now():
-      upcoming_shows.append({
-      "venue_id": venue.id,
+  all_past_shows = db.session.query(Shows).join(Venue).filter(Shows.artist_id==artist_id).filter(Shows.start_time<datetime.now()).all()
+  for show in all_past_shows:
+    venue = db.session.query(Venue).join(Shows).filter(Venue.id==show.venue_id).one()
+    past_shows.append({
+      "venue_id": show.venue_id,
       "venue_name": venue.name,
       "venue_image_link": venue.image_link,
       "start_time": str(show.start_time)
-      })
-      upcoming_shows_count +=1
-    else:
-      past_shows.append({
-      "venue_id": venue.id,
+    })
+
+  all_upcoming_shows = db.session.query(Shows).join(Venue).filter(Shows.artist_id==artist_id).filter(Shows.start_time>datetime.now()).all()
+  for show in all_upcoming_shows:
+    venue = db.session.query(Venue).join(Shows).filter(Venue.id==show.venue_id).one()
+    upcoming_shows.append({
+      "venue_id": show.venue_id,
       "venue_name": venue.name,
       "venue_image_link": venue.image_link,
       "start_time": str(show.start_time)
-      })
-      past_shows_count +=1
- 
+    })
+
   data = {
     'id': artist.id,
     'name': artist.name,
@@ -241,9 +239,9 @@ def show_artist(artist_id):
     'seeking_venue': artist.seeking_venue,
     'seeking_description': artist.seeking_description,
     "upcoming_shows": upcoming_shows,
-    "upcoming_shows_count": upcoming_shows_count,
+    "upcoming_shows_count": len(all_upcoming_shows),
     "past_shows": past_shows,
-    "past_shows_count": past_shows_count,
+    "past_shows_count": len(all_past_shows),
   }
   
   return render_template('pages/show_artist.html', artist=data)
@@ -326,11 +324,16 @@ def create_artist_submission():
       seeking_description=form.seeking_description.data,
       genres=form.genres.data
       ) 
-      db.session.add(artist)
-      db.session.commit()
+      # validates no duplicate artist can be created
+      exists=Artist.query.filter(Artist.name.ilike(artist.name)).count()
+      if exists == 0:
+        db.session.add(artist)
+        db.session.commit()
 
-      # on successful db insert, flash success
-      flash('Artist ' + artist.name + ' was successfully listed!')
+        # on successful db insert, flash success
+        flash('Artist ' + artist.name + ' was successfully listed!')
+      else:
+        raise Exception
 
   except Exception as e:
       # on unsuccessful db insert, flash an error instead.
